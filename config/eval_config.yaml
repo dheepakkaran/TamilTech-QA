@@ -1,0 +1,75 @@
+# Evaluation configuration.
+
+seed: 42
+
+paths:
+  test_set: "data/final/test.jsonl"
+  predictions_dir: "outputs/predictions"
+  results_dir: "outputs/evaluation"
+  figures_dir: "outputs/figures"
+
+generation:
+  max_new_tokens: 256
+  do_sample: false
+  temperature: 0.7
+  top_p: 0.9
+  repetition_penalty: 1.05
+
+models_to_eval:
+  - name: "base_zero_shot"
+    type: "base"
+    base_model: "meta-llama/Llama-3.1-8B-Instruct"
+    few_shot: 0
+  - name: "base_few_shot"
+    type: "base"
+    base_model: "meta-llama/Llama-3.1-8B-Instruct"
+    few_shot: 3
+  - name: "lora_r8"
+    type: "lora"
+    base_model: "meta-llama/Llama-3.1-8B-Instruct"
+    adapter_path: "outputs/lora_r8"
+  - name: "lora_r16"
+    type: "lora"
+    base_model: "meta-llama/Llama-3.1-8B-Instruct"
+    adapter_path: "outputs/lora_r16"
+  - name: "lora_r64"
+    type: "lora"
+    base_model: "meta-llama/Llama-3.1-8B-Instruct"
+    adapter_path: "outputs/lora_r64"
+  - name: "lora_r16_full"
+    type: "lora"
+    base_model: "meta-llama/Llama-3.1-8B-Instruct"
+    adapter_path: "outputs/lora_r16_full"
+
+metrics:
+  automatic:
+    - bleu_1
+    - bleu_2
+    - bleu_4
+    - rouge_1
+    - rouge_2
+    - rouge_l
+    - bertscore_f1
+    - exact_match
+    - token_f1
+    - perplexity
+    - answer_length_ratio
+  tanglish:
+    - csps
+    - ttr
+    - tcf
+  bertscore_model: "bert-base-multilingual-cased"
+
+ablation:
+  studies:
+    - lora_rank
+    - data_size
+    - data_source
+    - per_topic
+  data_size_fractions: [0.25, 0.50, 0.75, 1.00]
+  topics: ["python", "ml", "ece", "dsa", "web", "os"]
+
+visualization:
+  dpi: 300
+  style: "seaborn-v0_8-whitegrid"
+  palette: "deep"

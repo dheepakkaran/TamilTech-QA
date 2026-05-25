@@ -1,0 +1,169 @@
+# Data collection and preprocessing configuration.
+#
+# Environment variables of the form ${VAR_NAME} are expanded by
+# src/utils/__init__.py:load_config when the YAML is loaded.
+
+seed: 42
+
+paths:
+  raw_dir: data/raw
+  processed_dir: data/processed
+  final_dir: data/final
+
+# -------------------------------------------------------------------
+# Phase 1A — YouTube comment scraping
+# -------------------------------------------------------------------
+youtube:
+  api_key: "${YOUTUBE_API_KEY}"
+  # The 12 Tamil tech channels used in v0.1. Adjust as needed.
+  target_channels:
+    - UCIFQgj1Rhx-FFgyo0zzPSfw   # Brototype Tamil
+    - UCKOob5-7sMljgW3f4pO_Dyg   # Tamil Coding Wizard
+    - UCEKv3WR3HUVuIHV2eXFyGYg   # Tamil Programmer
+    - UC20sXo8ReewkzNKBFgzVCPA   # Tamil Tech (MrTT)
+    - UCvyZS6W6zMJCZBVzF-Ei6sw   # A2D Channel
+    - UCmCAY_mStg1POKUWgMg-aGQ   # AI Coach John (Tamil)
+    - UCY8kgTLO7GitoKuxz4Cw3uQ   # AI with Thiru
+    - UCBF5i6PogoMwnoAP0LFiCmQ   # Karthik's Show
+    - UC9xghV-TcBwGvK-aEMhpt5w   # Data Engineering Tamil
+    - UCApUMSkgDT8ayJZU8jBweYw   # Endless Knowledge
+    - UCvhU9qF1xtUsFXdKrcJxbFA   # Curious Freaks
+    - UCsq38VCprHHb_0rwBNfWFYw   # The AI Dude - Tamil
+  # Limits keep total quota under the YouTube Data API v3 free 10K/day budget
+  # when scraping all 12 channels in one pass.
+  max_comments_per_video: 200
+  max_videos_per_channel: 80
+  request_timeout_seconds: 30
+  retry:
+    max_attempts: 5
+    base_delay_seconds: 2.0
+    max_delay_seconds: 60.0
+
+# -------------------------------------------------------------------
+# Phase 1B — Synthetic QA generation
+# -------------------------------------------------------------------
+synthetic:
+  openai_api_key: "${OPENAI_API_KEY}"
+  # gpt-4o-mini: ~16x cheaper than gpt-4o and reliably produces Tanglish.
+  # ~500 pairs costs about $0.10. The generator uses OpenAI JSON mode
+  # internally - critical for parse-error-free structured output.
+  model: "gpt-4o-mini"
+  temperature: 0.8
+  max_tokens: 3000
+  n_pairs_per_topic: 50
+  topics:
+    - python
+    - dsa
+    - ml
+    - ece
+    - web
+    - os
+    - networking
+    - databases
+    - algorithms
+    - debugging
+  dedup_cosine_threshold: 0.85
+  retry:
+    max_attempts: 4
+    base_delay_seconds: 2.0
+
+# -------------------------------------------------------------------
+# Phase 1C — Existing dataset integration
+# -------------------------------------------------------------------
+existing_datasets:
+  - hf_id: "dravidian-codemix/DravidianCodeMix"
+    split: "train"
+    text_field: "text"
+    enable: true
+  - hf_id: "Cognitive-Lab/Aya_Tamil"
+    split: "train"
+    text_field: "inputs"
+    enable: true
+
+# -------------------------------------------------------------------
+# Phase 2 — Preprocessing
+# -------------------------------------------------------------------
+preprocessing:
+  # Loose Tanglish band as used in v0.1 — keeps more borderline samples.
+  # The tight original (0.15-0.85) drops too much real-user content.
+  tanglish_ratio_min: 0.05
+  tanglish_ratio_max: 0.95
+  min_words: 10
+  max_tokens: 512
+  minhash:
+    num_perm: 128
+    threshold: 0.85
+  technical_keywords:
+    - function
+    - array
+    - class
+    - error
+    - algorithm
+    - model
+    - training
+    - gradient
+    - circuit
+    - signal
+    - database
+    - api
+    - loop
+    - variable
+    - memory
+    - pointer
+    - transistor
+    - opamp
+    - kernel
+    - process
+    - thread
+    - regression
+    - classification
+    - neural
+    - transformer
+    - tensor
+    - cnn
+    - rnn
+    - lstm
+    - decorator
+    - inheritance
+    - polymorphism
+    - graph
+    - tree
+    - hash
+    - queue
+    - stack
+    - http
+    - rest
+    - sql
+    - schema
+  tamil_connectors:
+    - enna na
+    - apdi patha
+    - intha maari
+    - sollunga
+    - puriyutha
+    - theriyuma
+    - paaru
+    - paatha
+    - mathiri
+    - vidu
+    - kaata
+    - solliyaachu
+    - aanaa
+    - aprm
+    - aprum
+
+# -------------------------------------------------------------------
+# Phase 2C — Train/val/test split
+# -------------------------------------------------------------------
+split:
+  train_ratio: 0.80
+  val_ratio: 0.10
+  test_ratio: 0.10
+  stratify_by: ["topic", "difficulty"]
+
+# -------------------------------------------------------------------
+# QA formatting templates
+# -------------------------------------------------------------------
+formatting:
+  alpaca_instruction: "Nee oru helpful Tamil-English technical assistant. Keezhey ullla question-ku answer sollu."
+  chatml_system: "You are a helpful Tanglish technical assistant. Answer questions in Tamil-English mixed style."

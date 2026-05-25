@@ -1,0 +1,109 @@
+# Model + QLoRA fine-tuning configuration.
+#
+# These defaults are the working settings used to produce v0.1 of the
+# published TamilTech-QA model. They are tuned to fit a single free-tier
+# Kaggle T4 GPU (16 GB VRAM) inside a single 12-hour session.
+#
+# Key non-obvious choices (don't change without reading the README):
+#   - bf16=True, fp16=False: Llama-3.1 stores weights in bf16; the fp16
+#     grad scaler raises NotImplementedError on bf16 gradients. Mixed
+#     precision must be bf16 throughout.
+#   - per_device_train_batch_size=2, gradient_accumulation_steps=8:
+#     effective batch is 16, but each microbatch fits in T4's 16 GB.
+#   - max_seq_length=512: keeps activations small enough.
+#   - num_train_epochs=1: a single pass over 4,415 samples drops eval
+#     perplexity ~78%. More epochs are part of the v2 roadmap.
+
+seed: 42
+
+base_model:
+  default: "meta-llama/Llama-3.1-8B-Instruct"
+  alternatives:
+    - "mistralai/Mistral-7B-Instruct-v0.2"
+  trust_remote_code: false
+
+quantization:
+  load_in_4bit: true
+  bnb_4bit_compute_dtype: "float16"
+  bnb_4bit_use_double_quant: true
+  bnb_4bit_quant_type: "nf4"
+
+tokenizer:
+  pad_token_strategy: "eos"
+  padding_side: "right"
+  truncation_side: "right"
+  max_seq_length: 512
+
+lora_configs:
+  lora_r8:                              # default - what shipped in v0.1
+    r: 8
+    lora_alpha: 16
+    target_modules: ["q_proj", "v_proj", "k_proj", "o_proj"]
+    lora_dropout: 0.05
+    bias: "none"
+    task_type: "CAUSAL_LM"
+  lora_r16:                             # for v2 with more compute
+    r: 16
+    lora_alpha: 32
+    target_modules: ["q_proj", "v_proj", "k_proj", "o_proj"]
+    lora_dropout: 0.05
+    bias: "none"
+    task_type: "CAUSAL_LM"
+  lora_r64:                             # ablation only
+    r: 64
+    lora_alpha: 128
+    target_modules: ["q_proj", "v_proj", "k_proj", "o_proj"]
+    lora_dropout: 0.05
+    bias: "none"
+    task_type: "CAUSAL_LM"
+  lora_r16_full:                        # MLP modules also; ablation
+    r: 16
+    lora_alpha: 32
+    target_modules:
+      - q_proj
+      - v_proj
+      - k_proj
+      - o_proj
+      - gate_proj
+      - up_proj
+      - down_proj
+    lora_dropout: 0.05
+    bias: "none"
+    task_type: "CAUSAL_LM"
+
+training:
+  output_root: "outputs"
+  num_train_epochs: 1
+  per_device_train_batch_size: 2
+  per_device_eval_batch_size: 2
+  gradient_accumulation_steps: 8        # effective batch = 16
+  warmup_ratio: 0.03
+  learning_rate: 2.0e-4
+  weight_decay: 0.0
+  fp16: false
+  bf16: true                            # required for Llama-3.1
+  logging_steps: 5
+  evaluation_strategy: "steps"
+  eval_steps: 30
+  save_steps: 60
+  save_total_limit: 2
+  load_best_model_at_end: true
+  metric_for_best_model: "eval_loss"
+  greater_is_better: false
+  lr_scheduler_type: "cosine"
+  optim: "paged_adamw_8bit"
+  report_to: "none"                     # set to "wandb" if WANDB_API_KEY is exported
+  gradient_checkpointing: true
+  packing: false
+
+callbacks:
+  memory_log_every_steps: 30
+  sample_generation_every_steps: 60
+  num_sample_prompts: 3
+  early_stopping_patience: 3
+  early_stopping_threshold: 0.0
+
+wandb:
+  project: "tamiltech-qa"
+  entity: null
+  tags: ["qlora", "tanglish", "tamil-english", "code-switching"]
